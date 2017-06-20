@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "56784043378",
+    "firebase_url": "https://helloworldsync.firebaseio.com",
+    "project_id": "helloworldsync",
+    "storage_bucket": "helloworldsync.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:56784043378:android:4156a178bf95dbd4",
+        "android_client_info": {
+          "package_name": "com.example.smayber8.helloworldsync"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "56784043378-h6qgelhvg91d16m93a7s1e0uu12m1r7d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smayber8.helloworldsync",
+            "certificate_hash": "41786cda04b27345720a7edfd8c516201de9c1ea"
+          }
+        },
+        {
+          "client_id": "56784043378-a2gghmrrlpfdpc20frk3rg5ippp9thjc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2C8MUwkaTYTqOtLcMDEGVIEjxWUdalys"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "56784043378-a2gghmrrlpfdpc20frk3rg5ippp9thjc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,1 @@
+include ':app', ':smartdevicelink', ':sdl_android_lib-release', ':sdl_android_rc'
