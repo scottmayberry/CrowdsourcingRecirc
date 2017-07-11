@@ -1,16 +1,35 @@
 package com.example.smayber8.helloworldsync;
 
 import android.*;
+import android.Manifest;
+import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
+import android.os.Handler;
+import android.os.IBinder;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -34,12 +53,13 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import static com.example.smayber8.helloworldsync.R.id.map;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 //////////////////////////////////////////////////////////////////////////////
     //google maps stuff
     private GoogleMap mMap;
@@ -67,12 +87,146 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     //LocationScreen Stuff
     AirRecircTriggered loc;
 
+/////////////////////////////////////////////////////////////////////////
 
+    //Bluetooth stuff
+    private final static String TAG = MapsActivity.class.getSimpleName();
+
+
+    private ArrayList<BluetoothDevice> mBluetoothDevices;
+    private BluetoothAdapter mBluetoothAdapter;
+    private BluetoothDevice currentDevice;
+    private boolean mScanning;
+    private Handler mHandler;
+
+    private String mData;
+
+    public TextView mDataField;
+
+    private BluetoothLeService mBluetoothLeService;
+    private ArrayList<ArrayList<BluetoothGattCharacteristic>> mGattCharacteristics =
+            new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
+    private boolean mConnected = false;
+
+    private String mAddress = "5C:31:3E:56:D4:59";
+
+    private final Long SCAN_PERIOD = 10000L;
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
+            if (!mBluetoothLeService.initialize()) {
+                Log.e(TAG, "Unable to initialize Bluetooth");
+                finish();
+            }
+            // Automatically connects to the device upon successful start-up initialization.
+            mBluetoothLeService.connect(currentDevice.getAddress());
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mBluetoothLeService = null;
+        }
+    };
+    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
+                mConnected = true;
+                invalidateOptionsMenu();
+            } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
+                mConnected = false;
+                invalidateOptionsMenu();
+            } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
+                // Show all the supported services and characteristics on the user interface.
+                getGattServices(mBluetoothLeService.getSupportedGattServices());
+                for(int i = 0; i < mGattCharacteristics.size();i++)
+                    for(int g = 0; g < mGattCharacteristics.get(i).size();g++)
+                        mBluetoothLeService.setCharacteristicNotification(mGattCharacteristics.get(i).get(g), true);
+
+            } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
+                setMData(intent.getStringExtra(BluetoothLeService.EXTRA_DATA));
+            }
+        }
+    };
+    public synchronized void setMData(String mData)
+    {
+        this.mData = mData;
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
         mContext = getApplicationContext();
+        mScanning = false;
+        mHandler = new Handler();
+        mBluetoothDevices = new ArrayList<>();
+
+
+        // Use this check to determine whether BLE is supported on the device.  Then you can
+        // selectively disable BLE-related features.
+        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            Toast.makeText(this, "Bluetooth not supported", Toast.LENGTH_SHORT).show();
+            finish();
+        }
+
+        // Initializes a Bluetooth adapter.  For API level 18 and above, get a reference to
+        // BluetoothAdapter through BluetoothManager.
+        final BluetoothManager bluetoothManager =
+                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = bluetoothManager.getAdapter();
+
+        // Checks if Bluetooth is supported on the device.
+        if (mBluetoothAdapter == null) {
+            Toast.makeText(this, "Bluetooth not supported", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        if (ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION)) {
+
+            } else {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                        1);
+            }
+        }
+        if (ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.BLUETOOTH)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    android.Manifest.permission.BLUETOOTH)) {
+
+            } else {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{android.Manifest.permission.BLUETOOTH},
+                        2);
+            }
+        }
+        if (ContextCompat.checkSelfPermission(this,
+                android.Manifest.permission.BLUETOOTH_ADMIN)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    android.Manifest.permission.BLUETOOTH_ADMIN)) {
+
+            } else {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.BLUETOOTH_ADMIN},
+                        3);
+            }
+        }
+
         startSyncProxyService();
         radius = 160;
         timer = new Timer();
@@ -134,6 +288,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mapFragment.getMapAsync(this);
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         mLocationCallback = new LocationCallback() {
+
             @Override
             public void onLocationResult(LocationResult locationResult) {
                 for (Location location : locationResult.getLocations()) {
@@ -188,11 +343,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         ref = FirebaseDatabase.getInstance().getReference();
         ref.child("radius").addValueEventListener(updateRadius);
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
     }
 
 
@@ -357,5 +507,183 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     ///////////////////////////////!!!!!!!!!!!!!!!!MAPS!!!!!!!!!!!!!!!!!!!////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////
+
+
+    /////////////////////////////Bluetooth/////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////
+    private void displayData(String data) {
+        if (data != null) {
+            mDataField.setText(data);
+        }
+    }
+    private void getGattServices(List<BluetoothGattService> gattServices) {
+        if (gattServices == null) return;
+        mGattCharacteristics = new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
+
+        // Loops through available GATT Services.
+        for (BluetoothGattService gattService : gattServices) {
+            List<BluetoothGattCharacteristic> gattCharacteristics =
+                    gattService.getCharacteristics();
+            ArrayList<BluetoothGattCharacteristic> charas =
+                    new ArrayList<BluetoothGattCharacteristic>();
+
+            // Loops through available Characteristics.
+            for (BluetoothGattCharacteristic gattCharacteristic : gattCharacteristics) {
+                charas.add(gattCharacteristic);
+            }
+            mGattCharacteristics.add(charas);
+        }
+        return;
+    }
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.bluetooth_menu, menu);
+        if(!mConnected) {
+            for(int i = 0; i < mBluetoothDevices.size();i++)
+            {
+                String identifier;
+                String str = mBluetoothDevices.get(i).getBluetoothClass().toString();
+                if(mBluetoothDevices.get(i).getName() == null)
+                    identifier = "No name";
+                else
+                    identifier = mBluetoothDevices.get(i).getName();
+                menu.add(Menu.NONE, i, Menu.NONE, identifier);
+            }
+            menu.findItem(R.id.menu_disconnect).setVisible(false);
+            if (!mScanning) {
+                menu.findItem(R.id.menu_stop).setVisible(false);
+                menu.findItem(R.id.menu_scan).setVisible(true);
+                menu.findItem(R.id.menu_refresh).setActionView(null);
+            } else {
+                menu.findItem(R.id.menu_stop).setVisible(true);
+                menu.findItem(R.id.menu_scan).setVisible(false);
+                menu.findItem(R.id.menu_refresh).setActionView(
+                        R.layout.actionbar_indeterminate_progress);
+            }
+        }
+        else
+        {
+            menu.findItem(R.id.menu_stop).setVisible(false);
+            menu.findItem(R.id.menu_scan).setVisible(false);
+            menu.findItem(R.id.menu_refresh).setActionView(null);
+            menu.findItem(R.id.menu_disconnect).setVisible(true);
+        }
+        return true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
+        // fire an intent to display a dialog asking the user to grant permission to enable it.
+        if (!mBluetoothAdapter.isEnabled()) {
+            if (!mBluetoothAdapter.isEnabled()) {
+                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(enableBtIntent, 1);
+            }
+        }
+
+        // Initializes list view adapter.
+        mBluetoothDevices = new ArrayList<>();
+        scanLeDevice(true);
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        // User chose not to enable Bluetooth.
+        if (requestCode == 1 && resultCode == Activity.RESULT_CANCELED) {
+            finish();
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle item selection
+        switch(item.getItemId())
+        {
+            case R.id.menu_scan:
+                mBluetoothDevices.clear();
+                scanLeDevice(true);
+                break;
+            case R.id.menu_stop:
+                scanLeDevice(false);
+                break;
+            case android.R.id.home:
+                onBackPressed();
+                break;
+            case R.id.menu_disconnect:
+                mBluetoothLeService.disconnect();
+                mConnected = false;
+                invalidateOptionsMenu();
+                break;
+            default:
+                scanLeDevice(false);
+                currentDevice = mBluetoothDevices.get(item.getItemId());
+                Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
+                getBaseContext().getApplicationContext().bindService(gattServiceIntent, mServiceConnection, Context.BIND_AUTO_CREATE);
+                this.registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+                if (mBluetoothLeService != null) {
+                    final boolean result = mBluetoothLeService.connect(currentDevice.getAddress());
+                    Log.d(TAG, "Connect request result=" + result);
+                }
+
+
+        }
+
+        return true;
+    }
+    private void scanLeDevice(final boolean enable) {
+        if (enable) {
+            // Stops scanning after a pre-defined scan period.
+            mHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    mScanning = false;
+                    mBluetoothAdapter.stopLeScan(mLeScanCallback);
+                    invalidateOptionsMenu();
+                }
+            }, SCAN_PERIOD);
+
+            mScanning = true;
+            mBluetoothAdapter.startLeScan(mLeScanCallback);
+        } else {
+            mScanning = false;
+            mBluetoothAdapter.stopLeScan(mLeScanCallback);
+        }
+        invalidateOptionsMenu();
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        scanLeDevice(false);
+        mBluetoothDevices.clear();
+    }
+    // Device scan callback.
+    private BluetoothAdapter.LeScanCallback mLeScanCallback =
+            new BluetoothAdapter.LeScanCallback() {
+
+                @Override
+                public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(!mBluetoothDevices.contains(device)) {
+                                mBluetoothDevices.add(device);
+                                invalidateOptionsMenu();
+                            }
+                        }
+                    });
+                }
+            };
+    private static IntentFilter makeGattUpdateIntentFilter() {
+        final IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_CONNECTED);
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED);
+        intentFilter.addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED);
+        intentFilter.addAction(BluetoothLeService.ACTION_DATA_AVAILABLE);
+        return intentFilter;
+    }
+
 
 }

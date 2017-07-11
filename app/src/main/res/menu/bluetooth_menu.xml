@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_refresh"
+        android:checkable="false"
+        android:visible="true"
+        app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/menu_scan"
+        android:title="Scan"
+        app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/menu_stop"
+        android:title="Stop"
+        app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/menu_disconnect"
+        android:title="Disconnect"
+        app:showAsAction="ifRoom|withText" />
+</menu>
