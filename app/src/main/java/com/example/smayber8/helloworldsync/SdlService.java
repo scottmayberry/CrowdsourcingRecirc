@@ -274,7 +274,7 @@ public class SdlService extends Service implements IProxyListenerALM{
     public void startProxy() {
         if (proxy == null) {
             try {
-                proxy = new SdlProxyALM(MainActivity.getmContext(),this, "HelloWorldSync",false, Language.EN_US, Language.EN_US ,APP_ID);
+                proxy = new SdlProxyALM(MapsActivity.getmContext(),this, "HelloWorldSync",false, Language.EN_US, Language.EN_US ,APP_ID);
                 zone.setColumn(0);
                 zone.setRow(0);
                 zone.setLevel(0);
@@ -623,16 +623,18 @@ public class SdlService extends Service implements IProxyListenerALM{
     @Override
     public void onOnLockScreenNotification(OnLockScreenStatus notification) {
         System.out.println("onOnLockScreenNotification : " + notification.getDriverDistractionStatus());
-        if(!lockscreenDisplayed /*&& notification.getDriverDistractionStatus() == true*/ && notification.getShowLockScreen() == LockScreenStatus.REQUIRED){
-            // Show lock screen
-            Intent intent = new Intent(MainActivity.getmContext(),LockScreenActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NO_HISTORY|Intent.FLAG_ACTIVITY_NEW_TASK);
-            lockscreenDisplayed = true;
-            MainActivity.getmContext().startActivity(intent);
-        } /*else if(lockscreenDisplayed && notification.getShowLockScreen() != LockScreenStatus.REQUIRED){
-            // Clear lock screen
-            clearLockScreen();
-        }*/
+        return;
+//
+  //      if(!lockscreenDisplayed /*&& notification.getDriverDistractionStatus() == true*/ && notification.getShowLockScreen() == LockScreenStatus.REQUIRED){
+  //          // Show lock screen
+   //         Intent intent = new Intent(MapsActivity.getmContext(),LockScreenActivity.class);
+   //         intent.setFlags(Intent.FLAG_ACTIVITY_NO_HISTORY|Intent.FLAG_ACTIVITY_NEW_TASK);
+   //         lockscreenDisplayed = true;
+    //        MapsActivity.getmContext().startActivity(intent);
+    //    } /*else if(lockscreenDisplayed && notification.getShowLockScreen() != LockScreenStatus.REQUIRED){
+    //        // Clear lock screen
+    //        clearLockScreen();
+    //    }*/
     }
 
     @Override
@@ -646,10 +648,11 @@ public class SdlService extends Service implements IProxyListenerALM{
     }
 
     private void clearLockScreen() {
-        Intent intent = new Intent(MainActivity.getmContext(), MainActivity.class);
+        /*
+        Intent intent = new Intent(MapsActivity.getmContext(), MapsActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NO_HISTORY|Intent.FLAG_ACTIVITY_NEW_TASK);
-        MainActivity.getmContext().startActivity(intent);
-        lockscreenDisplayed = false;
+        MapsActivity.getmContext().startActivity(intent);
+        lockscreenDisplayed = false;*/
     }
 
     @Override
