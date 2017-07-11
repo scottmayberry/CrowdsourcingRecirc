@@ -84,7 +84,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 int color = Color.RED;
                 if(dataSnapshot.child("from").getValue() != null)
                 {
-                    if(!dataSnapshot.child("from").getValue().equals("manual"))
+                    if(!dataSnapshot.child("from").getValue().toString().toLowerCase().equals("manual"))
                         color = Color.GREEN;
                 }
                 currentCir.add(mMap.addCircle(new CircleOptions()
