@@ -11,14 +11,16 @@ public class AirRecircTriggered {
 
     public double longitude;
     public double latitude;
+    public String from;
 
     public AirRecircTriggered() {
         // Default constructor required for calls to DataSnapshot.getValue(User.class)
     }
 
-    public AirRecircTriggered(double longitude, double latitude) {
+    public AirRecircTriggered(double longitude, double latitude, String from) {
         this.longitude = longitude;
         this.latitude = latitude;
+        this.from = from;
     }
 
 }

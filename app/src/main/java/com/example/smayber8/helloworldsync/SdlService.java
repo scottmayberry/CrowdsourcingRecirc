@@ -86,6 +86,7 @@ public class SdlService extends Service implements IProxyListenerALM{
     public static AirRecircTriggered location;
     private AirRecircTriggered insideRadius;
     private boolean autoToggleAir = false;
+    private boolean manual = true;
 
     private class checkAirArea extends TimerTask {
         @Override
@@ -100,7 +101,8 @@ public class SdlService extends Service implements IProxyListenerALM{
                     if(dataSnapshot != null)
                         for (DataSnapshot position: dataSnapshot.getChildren()) {
 
-                            AirRecircTriggered temp = new AirRecircTriggered( getDoubleFromDatabase(position.child("longitude").getValue()),getDoubleFromDatabase(position.child("latitude").getValue()));
+                            AirRecircTriggered temp = new AirRecircTriggered( getDoubleFromDatabase(position.child("longitude").getValue()),getDoubleFromDatabase(position.child("latitude").getValue()),
+                                    position.child("from").getValue().toString());
                             if(!recirc && locationWithinRange(location,temp, radius, false)) {
                                 insideRadius = temp;
                                 autoToggleAir = true;
@@ -532,8 +534,6 @@ public class SdlService extends Service implements IProxyListenerALM{
 
                 }catch (SdlException e) {System.out.println("Error in subscribe vehicle data");}
             // Other HMI (Show, PerformInteraction, etc.) would go here
-
-
         }
 
 
@@ -721,8 +721,15 @@ public class SdlService extends Service implements IProxyListenerALM{
         if(gpsData != null) {
             double latitudeD = gpsData.getLatitudeDegrees();
             double longitudeD = gpsData.getLongitudeDegrees();
-            location = new AirRecircTriggered(latitudeD, longitudeD);
+            location = new AirRecircTriggered(latitudeD, longitudeD, getManualString(manual));
         }
+    }
+    public String getManualString(boolean man)
+    {
+        if(man)
+            return "Manual";
+        else
+            return "Auto";
     }
     public void writeToDatabase(double longitudeD, double latitudeD)
     {
@@ -754,7 +761,7 @@ public class SdlService extends Service implements IProxyListenerALM{
                         trueLong = longI+g+36000;
                     else
                         trueLong = longI+g;
-                mDatabase.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD,latitudeD));
+                mDatabase.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD,latitudeD, getManualString(manual)));
                 System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
             }
         }
@@ -1095,6 +1102,7 @@ public class SdlService extends Service implements IProxyListenerALM{
                         if(location != null && !autoToggleAir)
                             writeToDatabase(location.longitude, location.latitude);
                         autoToggleAir = false;
+                        manual = true;
                         //writeToDatabase(Math.random()*360-180, Math.random()*180-90);
                     }
                     else {

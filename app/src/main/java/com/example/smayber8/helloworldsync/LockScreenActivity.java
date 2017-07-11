@@ -65,7 +65,7 @@ public class LockScreenActivity extends AppCompatActivity {
             public void onLocationResult(LocationResult locationResult) {
                 for (Location location : locationResult.getLocations()) {
                     System.out.println("Longitude " + location.getLongitude() + " Latitude " + location.getLatitude());
-                    loc = new AirRecircTriggered(location.getLongitude(),location.getLatitude());
+                    loc = new AirRecircTriggered(location.getLongitude(),location.getLatitude(), "manual");
                     MainActivity.sdl.setLocation(loc);
                 }
             };
