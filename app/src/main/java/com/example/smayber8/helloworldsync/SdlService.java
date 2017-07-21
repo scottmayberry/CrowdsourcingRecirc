@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.google.android.gms.maps.model.LatLng;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -221,7 +222,8 @@ public class SdlService extends Service implements IProxyListenerALM{
         if(adjuster)//adjuster prevents rapid switching between on and off states
             r+= 0;
         System.out.println("Distance between points: " + Math.sqrt((pos1.longitude-pos2.longitude)*(pos1.longitude-pos2.longitude)*69*69 + (pos1.latitude-pos2.latitude)*(pos1.latitude-pos2.latitude)*69*69));
-        if(Math.sqrt((pos1.longitude-pos2.longitude)*(pos1.longitude-pos2.longitude)*69*69 + (pos1.latitude-pos2.latitude)*(pos1.latitude-pos2.latitude)*69*69) <= r)
+        double m = Math.sqrt((pos1.longitude-pos2.longitude)*(pos1.longitude-pos2.longitude)*69*69 + (pos1.latitude-pos2.latitude)*(pos1.latitude-pos2.latitude)*69*69);
+        if(m <= r)
             return true;
         return false;
     }
@@ -519,16 +521,6 @@ public class SdlService extends Service implements IProxyListenerALM{
                             //mDatabase.child("user").setValue(true);
                             //mDatabase.child("user").setValue(new AirRecircTriggered(42.857, -83.527));
                             System.out.println("mDatabase: " + mDatabase);
-                            mDatabase.child("radius").addValueEventListener(new ValueEventListener() {
-                                @Override
-                                public void onDataChange(DataSnapshot snapshot) {
-                                    System.out.println("Snapshot : " + snapshot.getValue().getClass().getName().toLowerCase());
-                                    radius = getDoubleFromDatabase(snapshot.getValue());
-                                }
-                                @Override
-                                public void onCancelled(DatabaseError databaseError) {
-                                }
-                            });
                             gpsTimer = new Timer(true);
                             gpsTimer.scheduleAtFixedRate(new checkAirArea(), lon, lon);
                         }
@@ -590,6 +582,10 @@ public class SdlService extends Service implements IProxyListenerALM{
             e.printStackTrace();
         }
 
+    }
+    public void setRadius(double r)
+    {
+        radius = r*0.000621371;
     }
 
     /**
@@ -753,15 +749,86 @@ public class SdlService extends Service implements IProxyListenerALM{
         else
             return "Auto";
     }
-    public void writeToDatabase(double longitudeD, double latitudeD)
+    public void writeToDatabase(double longitudeD, double latitudeD) {
+        int longI = (int) (longitudeD * 100);
+        int latI = (int) (latitudeD * 100);
+        int latURange = (int) ((latitudeD + radius / 69.0) * 100) - latI + 1;
+        int latLRange = latI - (int) ((latitudeD - radius / 69) * 100) - 1;
+        int longURange = (int) ((longitudeD + radius / 69.0) * 100) - longI + 1;
+        int longLRange = longI - (int) ((longitudeD - radius / 69.0) * 100) - 1;
+        String key = mDatabase.child("Position").push().getKey();
+        //this loops and adds recirc through all possible gps locations that could be a distance "radius" from the current position
+        int trueLong = longI;
+        int trueLat = latI;
+        for (int i = -latLRange; i <= latURange; i++) {
+            if (latI + i >= 9000)
+                trueLat = 9000;
+            else if (latI + i <= -9000)
+                trueLat = -9000;
+            else
+                trueLat = latI + i;
+            for (int g = -longLRange; g <= longURange; g++) {
+                if (longI + g >= 18000)
+                    trueLong = longI + g - 36000;
+                else if (longI + g <= -18000)
+                    trueLong = longI + g + 36000;
+                else
+                    trueLong = longI + g;
+                mDatabase.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD, latitudeD, getManualString(manual)));
+                System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
+            }
+        }
+    }
+    public void checkCircleRemove(LatLng latLng)
+    {
+        if(insideRadius != null)
+        {
+            if(insideRadius.latitude == latLng.latitude && insideRadius.longitude == insideRadius.longitude)
+            {
+                turnOffAirRecirc();
+                insideRadius = null;
+            }
+        }
+    }
+    public void removeFromDatabase(double longitudeD, double latitudeD, String key, DatabaseReference ref) {
+        int longI = (int) (longitudeD * 100);
+        int latI = (int) (latitudeD * 100);
+        double tempradius = 2;
+        int latURange = (int) ((latitudeD + tempradius / 69.0) * 100) - latI + 1;
+        int latLRange = latI - (int) ((latitudeD - tempradius / 69) * 100) - 1;
+        int longURange = (int) ((longitudeD + tempradius / 69.0) * 100) - longI + 1;
+        int longLRange = longI - (int) ((longitudeD - tempradius / 69.0) * 100) - 1;
+        //this loops and adds recirc through all possible gps locations that could be a distance "radius" from the current position
+        int trueLong = longI;
+        int trueLat = latI;
+        for (int i = -latLRange; i <= latURange; i++) {
+            if (latI + i >= 9000)
+                trueLat = 9000;
+            else if (latI + i <= -9000)
+                trueLat = -9000;
+            else
+                trueLat = latI + i;
+            for (int g = -longLRange; g <= longURange; g++) {
+                if (longI + g >= 18000)
+                    trueLong = longI + g - 36000;
+                else if (longI + g <= -18000)
+                    trueLong = longI + g + 36000;
+                else
+                    trueLong = longI + g;
+                ref.child("Position").child("" + trueLong).child("" + trueLat).child(key).removeValue();
+                System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
+            }
+        }
+    }
+    public void writeToDatabase(double longitudeD, double latitudeD, boolean man, DatabaseReference ref)
     {
         int longI = (int)(longitudeD*100);
         int latI = (int)(latitudeD*100);
-        int latURange = (int)((latitudeD + radius*1.0/69.0)*100)-latI;
-        int latLRange = latI - (int)((latitudeD - radius*1/69)*100);
-        int longURange = (int)((longitudeD + radius*1.0/69.0)*100) - longI;
-        int longLRange = longI - (int)((longitudeD - radius*1.0/69.0)*100);
-        String key = mDatabase.child("Position").push().getKey();
+        int latURange = (int)((latitudeD + radius/69.0)*100)-latI + 1;
+        int latLRange = latI - (int)((latitudeD - radius/69)*100) - 1;
+        int longURange = (int)((longitudeD + radius/69.0)*100) - longI + 1;
+        int longLRange = longI - (int)((longitudeD - radius/69.0)*100) -1;
+        String key = ref.child("Position").push().getKey();
         //this loops and adds recirc through all possible gps locations that could be a distance "radius" from the current position
         int trueLong = longI;
         int trueLat = latI;
@@ -770,25 +837,23 @@ public class SdlService extends Service implements IProxyListenerALM{
             if(latI + i >= 9000)
                 trueLat = 9000;
             else
-                if(latI + i <= -9000)
-                    trueLat = -9000;
-                else
-                    trueLat = latI+i;
+            if(latI + i <= -9000)
+                trueLat = -9000;
+            else
+                trueLat = latI+i;
             for(int g = -longLRange; g <= longURange; g++)
             {
                 if(longI + g >= 18000)
                     trueLong = longI+g-36000;
                 else
-                    if(longI + g <= -18000)
-                        trueLong = longI+g+36000;
-                    else
-                        trueLong = longI+g;
-                mDatabase.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD,latitudeD, getManualString(manual)));
+                if(longI + g <= -18000)
+                    trueLong = longI+g+36000;
+                else
+                    trueLong = longI+g;
+                ref.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD,latitudeD, getManualString(man)));
                 System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
             }
         }
-
-
     }//write to database
 
     /**

@@ -86,6 +86,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     //LocationScreen Stuff
     AirRecircTriggered loc;
+    boolean switchPosition = false;
+    boolean clearPreviousCircles = false;
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -264,7 +266,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 for(int i = 0; i < currentCir.size();i++)
                     if(currentCir.get(i).getCenter().longitude == latLng.longitude && currentCir.get(i).getCenter().latitude == latLng.latitude)
                     {
-
+                        sdl.checkCircleRemove(latLng);
                         currentCir.remove(i).remove();
                         i--;
                     }
@@ -288,6 +290,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     radius = (int) (getDoubleFromDatabase(dataSnapshot.getValue()) * 1609.34);
                     for(int i = 0; i < currentCir.size();i++)
                         currentCir.get(i).setRadius(radius);
+                    sdl.setRadius(radius);
                 }
             }
 
@@ -306,6 +309,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onLocationResult(LocationResult locationResult) {
                 for (Location location : locationResult.getLocations()) {
+                    if(switchPosition)
+                    {
+                        location.setLongitude(location.getLongitude() + .01);
+                    }
+                    if(clearPreviousCircles) {
+                        removePreviousCircles();
+                        clearPreviousCircles = false;
+                    }
                     LatLng ll = new LatLng(location.getLatitude(), location.getLongitude());
                     loc = new AirRecircTriggered(location.getLongitude(),location.getLatitude(), "manual");
                     sdl.setLocation(loc);
@@ -318,20 +329,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             if(!(posLis[1][1].getLatitude() == iLat && posLis[1][1].getLongitude() == iLong))
                             {
                                 previousCir.clear();
-                                for(int i = 0; i < currentCir.size();i++)
-                                    previousCir.add(currentCir.get(i));
+                                previousCir = (ArrayList<Circle>)currentCir.clone();
+
                                 currentCir.clear();
 
                                 pre = posLis.clone();
                                 updatePosLis(ll);
                                 removeListeners();
+                                addListeners();
                                 timer.schedule(new TimerTask() {
                                     @Override
                                     public void run() {
-                                        removePreviousCircles();
+                                        clearPreviousCircles = true;
                                     }
-                                }, 2000L);
-                                addListeners();
+                                }, 1000L);
+
                             }
                         }
                         else
@@ -357,6 +369,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         ref = FirebaseDatabase.getInstance().getReference();
         ref.child("radius").addValueEventListener(updateRadius);
+        sdl.setRadius(radius);
     }
 
 
@@ -410,8 +423,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
     private void removePreviousCircles()
     {
-        for(int i = 0; i < previousCir.size();i++)
-            previousCir.get(i).remove();
+        for(int i = 0; i < previousCir.size();i++) {
+            previousCir.remove(i).remove();
+            i--;
+        }
     }
 
 
@@ -506,8 +521,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onMapClick(LatLng latLng1) {
                 int iLat = (int)(latLng1.latitude*100);
                 int iLon = (int)(latLng1.longitude*100);
-                String key = ref.child("Position").child("" + iLon).child("" + iLat).push().getKey();
-                ref.child("Position").child("" + iLon).child("" + iLat).child(key).setValue(new AirRecircTriggered(latLng1.longitude, latLng1.latitude, "manual"));
+                //String key = ref.child("Position").child("" + iLon).child("" + iLat).push().getKey();
+                sdl.writeToDatabase(latLng1.longitude, latLng1.latitude, true, ref);
+                //ref.child("Position").child("" + iLon).child("" + iLat).child(key).setValue(new AirRecircTriggered(latLng1.longitude, latLng1.latitude, "manual"));
             }
         });
         mMap.setOnCircleClickListener(new GoogleMap.OnCircleClickListener() {
@@ -516,9 +532,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 for(int i = 0; i < currentCir.size();i++)
                     if(currentCir.get(i).getCenter().longitude == circle.getCenter().longitude && currentCir.get(i).getCenter().latitude == circle.getCenter().latitude)
                     {
-                        ref.child("Position").child("" + ((int)(circle.getCenter().longitude*100))).child("" + ((int)(circle.getCenter().latitude*100))).child(circle.getTag().toString()).removeValue();
-                        currentCir.remove(i).remove();
-                        i--;
+                        sdl.removeFromDatabase(circle.getCenter().longitude, circle.getCenter().latitude, circle.getTag().toString(), ref);
+                        //currentCir.remove(i).remove();
+                        //i--;
                     }
             }
         });
@@ -537,7 +553,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         mMap.setMyLocationEnabled(true);
         LatLng sydney = new LatLng(-34, 151);
-        Marker marker = mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
+        //Marker marker = mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
         //mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
         //centerMapOnMyLocation();
         //marker.remove();
@@ -647,6 +663,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         switch(item.getItemId())
         {
             case R.id.menu_scan:
+
+                /*switchPosition = !switchPosition;
+                Toast.makeText(this, "" + switchPosition, Toast.LENGTH_SHORT).show();*/
+
                 mBluetoothDevices.clear();
                 scanLeDevice(true);
                 break;
