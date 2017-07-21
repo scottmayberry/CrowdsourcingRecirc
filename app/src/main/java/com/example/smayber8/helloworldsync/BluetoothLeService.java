@@ -124,24 +124,6 @@ public class BluetoothLeService extends Service {
     private void broadcastUpdate(final String action,
                                  final BluetoothGattCharacteristic characteristic) {
         final Intent intent = new Intent(action);
-
-        // This is special handling for the Heart Rate Measurement profile.  Data parsing is
-        // carried out as per profile specifications:
-        // http://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicViewer.aspx?u=org.bluetooth.characteristic.heart_rate_measurement.xml
-        if (UUID_HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
-            int flag = characteristic.getProperties();
-            int format = -1;
-            if ((flag & 0x01) != 0) {
-                format = BluetoothGattCharacteristic.FORMAT_UINT16;
-                Log.d(TAG, "Heart rate format UINT16.");
-            } else {
-                format = BluetoothGattCharacteristic.FORMAT_UINT8;
-                Log.d(TAG, "Heart rate format UINT8.");
-            }
-            final int heartRate = characteristic.getIntValue(format, 1);
-            Log.d(TAG, String.format("Received heart rate: %d", heartRate));
-            intent.putExtra(EXTRA_DATA, String.valueOf(heartRate));
-        } else {
             // For all other profiles, writes the data formatted in HEX.
             /*
             final byte[] data = characteristic.getValue();
@@ -150,7 +132,7 @@ public class BluetoothLeService extends Service {
                 for(byte byteChar : data)
                     stringBuilder.append(String.format("%02X ", byteChar));
                 intent.putExtra(EXTRA_DATA, new String(data) + "\n" + stringBuilder.toString());
-             }
+    }
                 */
             byte[] x1 = characteristic.getValue();
             // 10504 = 2908 hex => x[3] = 50, x[4] = 57, x[5] = 48, x[6] = 56
@@ -160,9 +142,9 @@ public class BluetoothLeService extends Service {
             //  byte[] val1 = {(byte) (x1[6]-48), (byte) (x1[5]-48)};
             String hexValue = new String(val1);
             Integer scaled1 = hex2decimal(hexValue);
-            int scaled2 = scaled1 +  (int)(Math.random()*100);
-            intent.putExtra(EXTRA_DATA, "" + scaled2);
-        }
+            int scaled2 = scaled1 +  (int)(Math.random()*100)-58;
+            intent.putExtra(EXTRA_DATA, scaled2);
+            //intent.putExtra(EXTRA_DATA, scaled1.intValue());
         sendBroadcast(intent);
     }
     public static int hex2decimal(String s) {

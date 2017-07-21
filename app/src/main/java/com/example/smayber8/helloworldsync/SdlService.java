@@ -47,7 +47,7 @@ public class SdlService extends Service implements IProxyListenerALM{
 
     private static final String TAG 					= "SDL Service";
 
-    private static final String APP_NAME 				= "Hello Sdl";
+    private static final String APP_NAME 				= "Air Purification";
     private static final String APP_ID 					= "8675309";
 
     private static final String ICON_FILENAME 			= "hello_sdl_icon.png";
@@ -58,7 +58,7 @@ public class SdlService extends Service implements IProxyListenerALM{
     private static final String WELCOME_SHOW 			= "Welcome to HelloSDL";
     private static final String WELCOME_SPEAK 			= "Welcome to Hello S D L";
 
-    private static final String TEST_COMMAND_NAME 		= "Test Command";
+    private static final String TEST_COMMAND_NAME 		= "Crowdsourcing for Your Health";
     private static final int TEST_COMMAND_ID 			= 1;
 
     // variable used to increment correlation ID for every request sent to SYNC
@@ -174,6 +174,15 @@ public class SdlService extends Service implements IProxyListenerALM{
             e.printStackTrace();
         }
     }
+    public void turnOnAirRecircBecauseAirQuality()
+    {
+        if(!recirc)
+        {
+            manual = false;
+            turnOnAirRecirc();
+        }
+
+    }
     public void turnOnAirRecirc()
     {
         ClimateControlData cd = new ClimateControlData();
@@ -274,7 +283,7 @@ public class SdlService extends Service implements IProxyListenerALM{
     public void startProxy() {
         if (proxy == null) {
             try {
-                proxy = new SdlProxyALM(MapsActivity.getmContext(),this, "HelloWorldSync",false, Language.EN_US, Language.EN_US ,APP_ID);
+                proxy = new SdlProxyALM(MapsActivity.getmContext(),this, APP_NAME,false, Language.EN_US, Language.EN_US ,APP_ID);
                 zone.setColumn(0);
                 zone.setRow(0);
                 zone.setLevel(0);
@@ -332,6 +341,16 @@ public class SdlService extends Service implements IProxyListenerALM{
         try {
             proxy.show(TEST_COMMAND_NAME, "Command has been selected", TextAlignment.CENTERED, autoIncCorrId++);
             proxy.speak(TEST_COMMAND_NAME, autoIncCorrId++);
+        } catch (SdlException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void updateAirQualityText(int airQualityNumber)
+    {
+        try {
+            proxy.show(TEST_COMMAND_NAME, "Air Quality: " + airQualityNumber, TextAlignment.CENTERED, autoIncCorrId++);
+            //proxy.speak(TEST_COMMAND_NAME, autoIncCorrId++);
         } catch (SdlException e) {
             e.printStackTrace();
         }

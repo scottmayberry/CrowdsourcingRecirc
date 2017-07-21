@@ -99,7 +99,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private boolean mScanning;
     private Handler mHandler;
 
-    private String mData;
+    private int mData;
 
     public TextView mDataField;
 
@@ -108,7 +108,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
     private boolean mConnected = false;
 
-    private String mAddress = "5C:31:3E:56:D4:59";
+    private int threshold = 1300;
 
     private final Long SCAN_PERIOD = 10000L;
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
@@ -147,13 +147,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         mBluetoothLeService.setCharacteristicNotification(mGattCharacteristics.get(i).get(g), true);
 
             } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
-                setMData(intent.getStringExtra(BluetoothLeService.EXTRA_DATA));
+                setMData(intent.getIntExtra(BluetoothLeService.EXTRA_DATA, 0));
             }
         }
     };
-    public synchronized void setMData(String mData)
+    public synchronized void setMData(int mData)
     {
         this.mData = mData;
+        sdl.updateAirQualityText(mData);
+        if(this.mData > threshold)
+            sdl.turnOnAirRecircBecauseAirQuality();
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -235,18 +238,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onChildAdded(DataSnapshot dataSnapshot, String s) {
 
                 LatLng latLng = new LatLng(getDoubleFromDatabase(dataSnapshot.child("latitude").getValue()),getDoubleFromDatabase(dataSnapshot.child("longitude").getValue()));
-                int color = Color.RED;
+                int color = Color.argb(50, 225, 0, 0);
                 if(dataSnapshot.child("from").getValue() != null)
                 {
                     if(!dataSnapshot.child("from").getValue().toString().toLowerCase().equals("manual"))
-                        color = Color.GREEN;
+                        color = Color.argb(50, 0, 225, 0);
                 }
                 currentCir.add(mMap.addCircle(new CircleOptions()
                         .center(latLng)
                         .radius(radius)
                         .strokeColor(Color.GRAY)
                         .fillColor(color)));
-
+                currentCir.get(currentCir.size()-1).setClickable(true);
+                currentCir.get(currentCir.size()-1).setTag(dataSnapshot.getKey());
             }
 
             @Override
@@ -256,7 +260,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             @Override
             public void onChildRemoved(DataSnapshot dataSnapshot) {
+                LatLng latLng = new LatLng(getDoubleFromDatabase(dataSnapshot.child("latitude").getValue()),getDoubleFromDatabase(dataSnapshot.child("longitude").getValue()));
+                for(int i = 0; i < currentCir.size();i++)
+                    if(currentCir.get(i).getCenter().longitude == latLng.longitude && currentCir.get(i).getCenter().latitude == latLng.latitude)
+                    {
 
+                        currentCir.remove(i).remove();
+                        i--;
+                    }
 
             }
 
@@ -273,8 +284,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         updateRadius = new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                if(dataSnapshot != null)
-                    radius = (int)(getDoubleFromDatabase(dataSnapshot.getValue())*1609.34);
+                if(dataSnapshot != null) {
+                    radius = (int) (getDoubleFromDatabase(dataSnapshot.getValue()) * 1609.34);
+                    for(int i = 0; i < currentCir.size();i++)
+                        currentCir.get(i).setRadius(radius);
+                }
             }
 
             @Override
@@ -390,6 +404,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         for(int i = 0; i < posLis.length;i++)
             for(int g = 0; g < posLis[i].length;g++)
             {
+                LatLngInt a = posLis[i][g];
                 ref.child("Position").child("" + posLis[i][g].getLongitude()).child("" + posLis[i][g].getLatitude()).addChildEventListener(pollutionMap);
             }
     }
@@ -404,14 +419,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void updatePosLis(LatLng ll)
     {
         for(int i = 0; i < posLis.length;i++) {
-            double lat = ll.latitude + (i-1);
+            double lat = ll.latitude + ((double)(i - 1))/100.0;
             if (lat < -180)
                 lat += 360;
             if (lat > 180)
                 lat -= 360;
             int iLat = (int) (lat * 100);
             for (int g = 0; g < posLis[i].length; g++) {
-                double lon = ll.longitude + (g - 1);
+                double lon = ll.longitude + ((double)(g - 1))/100.0;
                 if (lon < -90)
                     lon = -90;
                 if (lon > 90)
@@ -420,6 +435,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 posLis[i][g] = new LatLngInt(iLat, iLon);
             }
         }
+    }
+    private LatLng roundLatLng(LatLng ll)
+    {
+        int iLat = (int)(ll.latitude*100);
+        int iLon = (int)(ll.longitude*100);
+        return new LatLng(iLat, iLon);
     }
 
 
@@ -480,6 +501,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
         mMap.getUiSettings().setAllGesturesEnabled(false);
+        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+            @Override
+            public void onMapClick(LatLng latLng1) {
+                int iLat = (int)(latLng1.latitude*100);
+                int iLon = (int)(latLng1.longitude*100);
+                String key = ref.child("Position").child("" + iLon).child("" + iLat).push().getKey();
+                ref.child("Position").child("" + iLon).child("" + iLat).child(key).setValue(new AirRecircTriggered(latLng1.longitude, latLng1.latitude, "manual"));
+            }
+        });
+        mMap.setOnCircleClickListener(new GoogleMap.OnCircleClickListener() {
+            @Override
+            public void onCircleClick(Circle circle) {
+                for(int i = 0; i < currentCir.size();i++)
+                    if(currentCir.get(i).getCenter().longitude == circle.getCenter().longitude && currentCir.get(i).getCenter().latitude == circle.getCenter().latitude)
+                    {
+                        ref.child("Position").child("" + ((int)(circle.getCenter().longitude*100))).child("" + ((int)(circle.getCenter().latitude*100))).child(circle.getTag().toString()).removeValue();
+                        currentCir.remove(i).remove();
+                        i--;
+                    }
+            }
+        });
+
+
         // Add a marker in Sydney and move the camera
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             // TODO: Consider calling
