@@ -5,8 +5,15 @@
     <item
         android:id="@+id/menu_refresh"
         android:checkable="false"
+        android:enabled="false"
         android:visible="true"
         app:showAsAction="ifRoom|withText" />
+    <item
+        android:id="@+id/menu_location"
+        android:title="Global"
+        android:checkable="false"
+        android:visible="true"
+        app:showAsAction="always"></item>
     <item
         android:id="@+id/menu_scan"
         android:title="Scan"

@@ -56,6 +56,8 @@ public class SdlService extends Service implements IProxyListenerALM{
 
     List<String> remoteFiles;
 
+    private String uniqueID;
+
     private static final String WELCOME_SHOW 			= "Welcome to HelloSDL";
     private static final String WELCOME_SPEAK 			= "Welcome to Hello S D L";
 
@@ -272,6 +274,10 @@ public class SdlService extends Service implements IProxyListenerALM{
         //LockScreenManager.clearLockScreen();
         instance = null;
         super.onDestroy();
+    }
+    public void setUniqueID(String str)
+    {
+        uniqueID = str;
     }
 
     public static SdlService getInstance() {
@@ -752,10 +758,10 @@ public class SdlService extends Service implements IProxyListenerALM{
     public void writeToDatabase(double longitudeD, double latitudeD) {
         int longI = (int) (longitudeD * 100);
         int latI = (int) (latitudeD * 100);
-        int latURange = (int) ((latitudeD + radius / 69.0) * 100) - latI + 1;
-        int latLRange = latI - (int) ((latitudeD - radius / 69) * 100) - 1;
-        int longURange = (int) ((longitudeD + radius / 69.0) * 100) - longI + 1;
-        int longLRange = longI - (int) ((longitudeD - radius / 69.0) * 100) - 1;
+        int latURange = (int) ((latitudeD + radius / 69.0) * 100) - latI;
+        int latLRange = latI - (int) ((latitudeD - radius / 69) * 100);
+        int longURange = (int) ((longitudeD + radius / 69.0) * 100) - longI;
+        int longLRange = longI - (int) ((longitudeD - radius / 69.0) * 100);
         String key = mDatabase.child("Position").push().getKey();
         //this loops and adds recirc through all possible gps locations that could be a distance "radius" from the current position
         int trueLong = longI;
@@ -774,8 +780,9 @@ public class SdlService extends Service implements IProxyListenerALM{
                     trueLong = longI + g + 36000;
                 else
                     trueLong = longI + g;
+                mDatabase.child("Local").child(uniqueID).child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD, latitudeD, getManualString(manual)));
                 mDatabase.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD, latitudeD, getManualString(manual)));
-                System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
+                //System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
             }
         }
     }
@@ -783,7 +790,7 @@ public class SdlService extends Service implements IProxyListenerALM{
     {
         if(insideRadius != null)
         {
-            if(insideRadius.latitude == latLng.latitude && insideRadius.longitude == insideRadius.longitude)
+            if(locationWithinRange(new AirRecircTriggered(latLng.longitude, latLng.latitude, "manual"), insideRadius, radius, false))
             {
                 turnOffAirRecirc();
                 insideRadius = null;
@@ -795,9 +802,9 @@ public class SdlService extends Service implements IProxyListenerALM{
         int latI = (int) (latitudeD * 100);
         double tempradius = 2;
         int latURange = (int) ((latitudeD + tempradius / 69.0) * 100) - latI + 1;
-        int latLRange = latI - (int) ((latitudeD - tempradius / 69) * 100) - 1;
+        int latLRange = latI - (int) ((latitudeD - tempradius / 69) * 100);
         int longURange = (int) ((longitudeD + tempradius / 69.0) * 100) - longI + 1;
-        int longLRange = longI - (int) ((longitudeD - tempradius / 69.0) * 100) - 1;
+        int longLRange = longI - (int) ((longitudeD - tempradius / 69.0) * 100);
         //this loops and adds recirc through all possible gps locations that could be a distance "radius" from the current position
         int trueLong = longI;
         int trueLat = latI;
@@ -815,7 +822,9 @@ public class SdlService extends Service implements IProxyListenerALM{
                     trueLong = longI + g + 36000;
                 else
                     trueLong = longI + g;
+
                 ref.child("Position").child("" + trueLong).child("" + trueLat).child(key).removeValue();
+                mDatabase.child("Local").child(uniqueID).child("" + trueLong).child("" + trueLat).child(key).removeValue();
                 System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
             }
         }
@@ -825,9 +834,9 @@ public class SdlService extends Service implements IProxyListenerALM{
         int longI = (int)(longitudeD*100);
         int latI = (int)(latitudeD*100);
         int latURange = (int)((latitudeD + radius/69.0)*100)-latI + 1;
-        int latLRange = latI - (int)((latitudeD - radius/69)*100) - 1;
+        int latLRange = latI - (int)((latitudeD - radius/69.0)*100);
         int longURange = (int)((longitudeD + radius/69.0)*100) - longI + 1;
-        int longLRange = longI - (int)((longitudeD - radius/69.0)*100) -1;
+        int longLRange = longI - (int)((longitudeD - radius/69.0)*100);
         String key = ref.child("Position").push().getKey();
         //this loops and adds recirc through all possible gps locations that could be a distance "radius" from the current position
         int trueLong = longI;

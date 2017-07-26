@@ -20,14 +20,12 @@ import android.location.Location;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -52,6 +50,13 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
@@ -89,6 +94,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     boolean switchPosition = false;
     boolean clearPreviousCircles = false;
 
+
+    private String fileID;
+    public static final String filename = "identifier.txt";
+
+
 /////////////////////////////////////////////////////////////////////////
 
     //Bluetooth stuff
@@ -100,6 +110,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private BluetoothDevice currentDevice;
     private boolean mScanning;
     private Handler mHandler;
+
 
     private int mData;
 
@@ -370,6 +381,48 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         ref = FirebaseDatabase.getInstance().getReference();
         ref.child("radius").addValueEventListener(updateRadius);
         sdl.setRadius(radius);
+
+        File file = new File(this.getFilesDir(), filename);
+        try{
+            if(!file.exists())
+            {
+                FileOutputStream outputStream;
+                fileID = ref.child("Local").push().getKey();
+                Toast.makeText(this, "Created " + fileID, Toast.LENGTH_LONG).show();
+                outputStream = openFileOutput(filename, Context.MODE_PRIVATE);
+                outputStream.write(fileID.getBytes());
+                outputStream.close();
+            }
+            else
+            {
+                try {
+                    InputStream inputStream = this.openFileInput(filename);
+
+                    if ( inputStream != null ) {
+                        InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+                        BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                        String receiveString = "";
+                        StringBuilder stringBuilder = new StringBuilder();
+
+                        while ( (receiveString = bufferedReader.readLine()) != null ) {
+                            stringBuilder.append(receiveString);
+                        }
+
+                        inputStream.close();
+                        fileID = stringBuilder.toString();
+                        Toast.makeText(this, "Read " + fileID, Toast.LENGTH_LONG).show();
+                    }
+                }
+                catch (FileNotFoundException e) {
+                    Log.e("login activity", "File not found: " + e.toString());
+                } catch (IOException e) {
+                    Log.e("login activity", "Can not read file: " + e.toString());
+                }
+
+
+            }
+        }catch(Exception e)
+        {e.printStackTrace();}
     }
 
 
@@ -680,6 +733,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mBluetoothLeService.disconnect();
                 mConnected = false;
                 invalidateOptionsMenu();
+                break;
+            case R.id.menu_location:
+                String positionLook = item.getTitle().toString();
+                if(positionLook.equals("Global")) //global positioning
+                {
+                    item.setTitle("Local");
+
+                }
+                else
+                { //local positioning
+                    item.setTitle("Global");
+
+                }
                 break;
             default:
                 scanLeDevice(false);
