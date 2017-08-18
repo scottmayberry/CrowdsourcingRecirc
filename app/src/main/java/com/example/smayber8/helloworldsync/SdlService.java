@@ -49,17 +49,17 @@ public class SdlService extends Service implements IProxyListenerALM{
     private static final String TAG 					= "SDL Service";
 
     private static final String APP_NAME 				= "Air Purification";
-    private static final String APP_ID 					= "8675309";
+    private static final String APP_ID 					= "8675310";
 
-    private static final String ICON_FILENAME 			= "hello_sdl_icon.png";
+    private static final String ICON_FILENAME 			= "sdl_128.png";
     private int iconCorrelationId;
 
     List<String> remoteFiles;
 
     private String uniqueID;
 
-    private static final String WELCOME_SHOW 			= "Welcome to HelloSDL";
-    private static final String WELCOME_SPEAK 			= "Welcome to Hello S D L";
+    private static final String WELCOME_SHOW 			= "Welcome to Air Purification";
+    private static final String WELCOME_SPEAK 			= "Welcome to Aid Purification";
 
     private static final String TEST_COMMAND_NAME 		= "Crowdsourcing for Your Health";
     private static final int TEST_COMMAND_ID 			= 1;
@@ -78,13 +78,16 @@ public class SdlService extends Service implements IProxyListenerALM{
     private boolean firstNonHmiNone = true;
     private boolean isVehicleDataSubscribed = false;
 
+    private int savedTemp;
+    private int savedFanSpeed;
+
     private InteriorZone zone = new InteriorZone();
     private int currentTemp;
+    private int currentFanSpeed;
     private boolean recirc;
     private boolean recircStateChanged = false;
     private Long lon = 5000L;
     private Timer gpsTimer;
-    private DatabaseReference mDatabase;
     private double radius = 1.0;
     public static AirRecircTriggered location;
     private AirRecircTriggered insideRadius;
@@ -128,7 +131,9 @@ public class SdlService extends Service implements IProxyListenerALM{
                 if(insideRadius == null) {//only check if moved outside current radius or there has not been a radius yet
                     int lng = (int) (location.longitude * 100);
                     int latitu = (int) (location.latitude * 100);
-                    mDatabase.child("Position").child("" + lng).child("" + latitu).addListenerForSingleValueEvent(postListener);
+                    Util.ref.child("Position").child("" + lng).child("" + latitu).addListenerForSingleValueEvent(postListener);
+                    if(!Util.global)
+                        Util.ref.child("Local").child(uniqueID).child("" + lng).child("" + latitu).addListenerForSingleValueEvent(postListener);
                     System.out.println("LNG: " + lng + " Lat: " + latitu);
                 }
                 else
@@ -218,6 +223,22 @@ public class SdlService extends Service implements IProxyListenerALM{
         else {
             turnOnAirRecirc();
         }
+    }
+    public void refreshCabin()
+    {
+        savedTemp = currentTemp;
+        savedFanSpeed = currentFanSpeed;
+        //UpdateTemp(16);
+        UpdateFanSpeed(70);
+        Timer timer = new Timer(true);
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                //UpdateTemp(savedTemp);
+                UpdateFanSpeed(savedFanSpeed);
+            }
+        },10000);
+
     }
     public boolean locationWithinRange(AirRecircTriggered pos1, AirRecircTriggered pos2, double r, boolean adjuster)
     {
@@ -398,6 +419,7 @@ public class SdlService extends Service implements IProxyListenerALM{
             if (temp > 15 && temp < 30) {
                 ClimateControlData cd = new ClimateControlData();
                 cd.setDesiredTemp(temp);
+
                 //cd.setRecirculateEnabled();
 
                 cd.setInteriorDataType(ModuleType.CLIMATE);
@@ -413,6 +435,38 @@ public class SdlService extends Service implements IProxyListenerALM{
 
                 try {
                     currentTemp = temp;
+                    //   proxy.show("ID " + autoIncCorrId , null, null, autoIncCorrId++);
+                    proxy.sendRPCRequest(sd);
+                    //    mHandler.postDelayed(r, 3000);
+                } catch (SdlException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    public void UpdateFanSpeed(int temp) {
+        if (true) {
+
+            Log.e("Climate Temp", "sendTemperatureRPC: " + temp);
+            if (temp > 15 && temp < 30) {
+                ClimateControlData cd = new ClimateControlData();
+                cd.setFanSpeed(temp);
+
+                //cd.setRecirculateEnabled();
+
+                cd.setInteriorDataType(ModuleType.CLIMATE);
+                ModuleData mdata = new ModuleData();
+                mdata.setModuleZone(zone);
+
+                mdata.setModuleType(ModuleType.CLIMATE);
+                mdata.setControlData(cd);
+
+                SetInteriorVehicleData sd = new SetInteriorVehicleData();
+                sd.setCorrelationID(autoIncCorrId++);
+                sd.setModuleData(mdata);
+
+                try {
+                    currentFanSpeed = temp;
                     //   proxy.show("ID " + autoIncCorrId , null, null, autoIncCorrId++);
                     proxy.sendRPCRequest(sd);
                     //    mHandler.postDelayed(r, 3000);
@@ -523,10 +577,10 @@ public class SdlService extends Service implements IProxyListenerALM{
                         //isVehicleDataSubscribed = true
                         if(gpsTimer == null) {
                             //instantiate database and timer all at once
-                            mDatabase = FirebaseDatabase.getInstance().getReference();
+                            //mDatabase = FirebaseDatabase.getInstance().getReference();
                             //mDatabase.child("user").setValue(true);
                             //mDatabase.child("user").setValue(new AirRecircTriggered(42.857, -83.527));
-                            System.out.println("mDatabase: " + mDatabase);
+                            //System.out.println("mDatabase: " + mDatabase);
                             gpsTimer = new Timer(true);
                             gpsTimer.scheduleAtFixedRate(new checkAirArea(), lon, lon);
                         }
@@ -762,7 +816,7 @@ public class SdlService extends Service implements IProxyListenerALM{
         int latLRange = latI - (int) ((latitudeD - radius / 69) * 100);
         int longURange = (int) ((longitudeD + radius / 69.0) * 100) - longI;
         int longLRange = longI - (int) ((longitudeD - radius / 69.0) * 100);
-        String key = mDatabase.child("Position").push().getKey();
+        String key = Util.ref.child("Position").push().getKey();
         //this loops and adds recirc through all possible gps locations that could be a distance "radius" from the current position
         int trueLong = longI;
         int trueLat = latI;
@@ -780,8 +834,9 @@ public class SdlService extends Service implements IProxyListenerALM{
                     trueLong = longI + g + 36000;
                 else
                     trueLong = longI + g;
-                mDatabase.child("Local").child(uniqueID).child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD, latitudeD, getManualString(manual)));
-                mDatabase.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD, latitudeD, getManualString(manual)));
+                if(uniqueID != null)
+                    Util.ref.child("Local").child(uniqueID).child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD, latitudeD, getManualString(manual)));
+                Util.ref.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD, latitudeD, getManualString(manual)));
                 //System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
             }
         }
@@ -824,7 +879,8 @@ public class SdlService extends Service implements IProxyListenerALM{
                     trueLong = longI + g;
 
                 ref.child("Position").child("" + trueLong).child("" + trueLat).child(key).removeValue();
-                mDatabase.child("Local").child(uniqueID).child("" + trueLong).child("" + trueLat).child(key).removeValue();
+                if (uniqueID != null)
+                    ref.child("Local").child(uniqueID).child("" + trueLong).child("" + trueLat).child(key).removeValue();
                 System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
             }
         }
@@ -860,7 +916,9 @@ public class SdlService extends Service implements IProxyListenerALM{
                 else
                     trueLong = longI+g;
                 ref.child("Position").child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD,latitudeD, getManualString(man)));
-                System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
+                if(uniqueID != null)
+                    ref.child("Local").child(uniqueID).child("" + trueLong).child("" + trueLat).child(key).setValue(new AirRecircTriggered(longitudeD, latitudeD, getManualString(manual)));
+                //System.out.println("Position/" + trueLong + "/" + trueLat + "/" + key);
             }
         }
     }//write to database
@@ -1187,9 +1245,12 @@ public class SdlService extends Service implements IProxyListenerALM{
     @Override
     public void onOnInteriorVehicleData(OnInteriorVehicleData notification) {
         System.out.println("Interior Vehicle Data : " + notification.getModuleData());
+        Log.e(TAG, "onOnInteriorVehicleData: " + notification.getModuleData());
         if(notification != null && notification.getModuleData() != null && notification.getModuleData().getControlData() != null) {
             if (notification.getModuleData().getModuleType().equals(ModuleType.CLIMATE)) {
                 ClimateControlData cd = (ClimateControlData) notification.getModuleData().getControlData();
+                currentTemp = (Integer) cd.getDesiredTemp();
+                currentFanSpeed = cd.getFanSpeed();
                 if (recirc != cd.getRecirculateEnabled()) {
                     //log data point here. Take gps location and recirc control
                     recirc = !recirc;

@@ -7,7 +7,7 @@
         android:checkable="false"
         android:enabled="false"
         android:visible="true"
-        app:showAsAction="ifRoom|withText" />
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_location"
         android:title="Global"
@@ -15,15 +15,23 @@
         android:visible="true"
         app:showAsAction="always"></item>
     <item
+        android:id="@+id/menu_refreshcabin"
+        android:title="Refresh"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/menu_flipmap"
+        android:title="Change Map"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/menu_scan"
         android:title="Scan"
-        app:showAsAction="ifRoom|withText" />
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_stop"
         android:title="Stop"
-        app:showAsAction="ifRoom|withText" />
+        app:showAsAction="always" />
     <item
         android:id="@+id/menu_disconnect"
         android:title="Disconnect"
-        app:showAsAction="ifRoom|withText" />
+        app:showAsAction="always" />
 </menu>

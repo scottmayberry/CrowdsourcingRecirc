@@ -1,6 +1,5 @@
 package com.example.smayber8.helloworldsync;
 
-import android.*;
 import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
@@ -42,7 +41,6 @@ import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.database.ChildEventListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -62,7 +60,8 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import static com.example.smayber8.helloworldsync.R.id.map;
+import static com.example.smayber8.helloworldsync.Util.global;
+import static com.example.smayber8.helloworldsync.Util.ref;
 
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 //////////////////////////////////////////////////////////////////////////////
@@ -72,7 +71,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private FusedLocationProviderClient mFusedLocationClient;
     private LocationCallback mLocationCallback;
     private LocationRequest mLocationRequest;
-    private DatabaseReference ref;
     private int radius;//meters
     private LatLngInt[][] posLis;
     private LatLngInt[][] pre;
@@ -121,7 +119,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             new ArrayList<ArrayList<BluetoothGattCharacteristic>>();
     private boolean mConnected = false;
 
-    private int threshold = 1300;
+    private int threshold = 1280;
 
     private final Long SCAN_PERIOD = 10000L;
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
@@ -179,6 +177,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         mScanning = false;
         mHandler = new Handler();
         mBluetoothDevices = new ArrayList<>();
+        global = false;
 
 
         // Use this check to determine whether BLE is supported on the device.  Then you can
@@ -217,11 +216,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.BLUETOOTH)
                 != PackageManager.PERMISSION_GRANTED) {
-
             // Should we show an explanation?
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,
                     android.Manifest.permission.BLUETOOTH)) {
-
             } else {
                 ActivityCompat.requestPermissions(this,
                         new String[]{android.Manifest.permission.BLUETOOTH},
@@ -231,11 +228,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.BLUETOOTH_ADMIN)
                 != PackageManager.PERMISSION_GRANTED) {
-
             // Should we show an explanation?
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,
                     android.Manifest.permission.BLUETOOTH_ADMIN)) {
-
             } else {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.BLUETOOTH_ADMIN},
@@ -257,6 +252,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     if(!dataSnapshot.child("from").getValue().toString().toLowerCase().equals("manual"))
                         color = Color.argb(50, 0, 225, 0);
                 }
+                for(int i = 0; i < currentCir.size();i++)
+                    if(currentCir.get(i).getCenter().latitude == latLng.latitude && currentCir.get(i).getCenter().longitude == latLng.longitude)
+                        return;
                 currentCir.add(mMap.addCircle(new CircleOptions()
                         .center(latLng)
                         .radius(radius)
@@ -299,6 +297,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onDataChange(DataSnapshot dataSnapshot) {
                 if(dataSnapshot != null) {
                     radius = (int) (getDoubleFromDatabase(dataSnapshot.getValue()) * 1609.34);
+                    if(currentCir == null)
+                        return;
                     for(int i = 0; i < currentCir.size();i++)
                         currentCir.get(i).setRadius(radius);
                     sdl.setRadius(radius);
@@ -312,7 +312,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         };
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-                .findFragmentById(map);
+                .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         mLocationCallback = new LocationCallback() {
@@ -329,7 +329,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         clearPreviousCircles = false;
                     }
                     LatLng ll = new LatLng(location.getLatitude(), location.getLongitude());
-                    loc = new AirRecircTriggered(location.getLongitude(),location.getLatitude(), "manual");
+                    loc = new AirRecircTriggered(location.getLongitude(),location.getLatitude(),
+                            "manual");
                     sdl.setLocation(loc);
                     if (mMap != null) {
                         mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(ll, 15));
@@ -337,7 +338,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                         {
                             int iLat = (int)(ll.latitude*100);
                             int iLong = (int)(ll.longitude*100);
-                            if(!(posLis[1][1].getLatitude() == iLat && posLis[1][1].getLongitude() == iLong))
+                            if(!(posLis[1][1].getLatitude() == iLat && posLis[1][1].getLongitude()
+                                    == iLong))
                             {
                                 previousCir.clear();
                                 previousCir = (ArrayList<Circle>)currentCir.clone();
@@ -378,7 +380,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, 1);
         } else {
         }
-        ref = FirebaseDatabase.getInstance().getReference();
+        if(ref == null) {
+            FirebaseDatabase.getInstance().setPersistenceEnabled(true);
+            ref = FirebaseDatabase.getInstance().getReference();
+        }
+        else
+        {
+            //clear everything
+        }
         ref.child("radius").addValueEventListener(updateRadius);
         sdl.setRadius(radius);
 
@@ -423,6 +432,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         }catch(Exception e)
         {e.printStackTrace();}
+        sdl.setUniqueID(fileID);
     }
 
 
@@ -459,19 +469,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     /////////////////////////////////////////////////////////////////////////
     private void removeListeners()
     {
+        DatabaseReference reference;
+        if(global)
+            reference = ref.child("Position");
+        else
+            reference = ref.child("Local").child(fileID);
         for(int i = 0; i < pre.length;i++)
             for(int g = 0; g < pre[i].length;g++)
             {
-                ref.child("Position").child("" + pre[i][g].getLongitude()).child("" + pre[i][g].getLatitude()).removeEventListener(pollutionMap);
+                reference.child("" + pre[i][g].getLongitude()).child("" + pre[i][g].getLatitude()).removeEventListener(pollutionMap);
             }
     }
     private void addListeners()
     {
+        DatabaseReference reference;
+        if(global)
+            reference = ref.child("Position");
+        else
+            reference = ref.child("Local").child(fileID);
         for(int i = 0; i < posLis.length;i++)
             for(int g = 0; g < posLis[i].length;g++)
             {
                 LatLngInt a = posLis[i][g];
-                ref.child("Position").child("" + posLis[i][g].getLongitude()).child("" + posLis[i][g].getLatitude()).addChildEventListener(pollutionMap);
+                reference.child("" + posLis[i][g].getLongitude()).child("" + posLis[i][g].getLatitude()).addChildEventListener(pollutionMap);
             }
     }
     private void removePreviousCircles()
@@ -510,6 +530,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         int iLon = (int)(ll.longitude*100);
         return new LatLng(iLat, iLon);
     }
+
 
 
     private void startLocationUpdates() {
@@ -568,6 +589,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
         mMap.getUiSettings().setAllGesturesEnabled(false);
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
@@ -585,7 +607,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 for(int i = 0; i < currentCir.size();i++)
                     if(currentCir.get(i).getCenter().longitude == circle.getCenter().longitude && currentCir.get(i).getCenter().latitude == circle.getCenter().latitude)
                     {
+                        //sdl.checkCircleRemove(new LatLng(circle.getCenter().latitude, circle.getCenter().longitude));
+                        //currentCir.remove(i).remove();
+                        circle.setVisible(false);
                         sdl.removeFromDatabase(circle.getCenter().longitude, circle.getCenter().latitude, circle.getTag().toString(), ref);
+                        //i--;
                         //currentCir.remove(i).remove();
                         //i--;
                     }
@@ -651,6 +677,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.bluetooth_menu, menu);
+
         if(!mConnected) {
             for(int i = 0; i < mBluetoothDevices.size();i++)
             {
@@ -688,6 +715,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onResume() {
         super.onResume();
 
+
+
         // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
         // fire an intent to display a dialog asking the user to grant permission to enable it.
         if (!mBluetoothAdapter.isEnabled()) {
@@ -715,6 +744,12 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         // Handle item selection
         switch(item.getItemId())
         {
+            case R.id.menu_flipmap:
+                if(mMap.getMapType() == GoogleMap.MAP_TYPE_NORMAL)
+                    mMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
+                else
+                    mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
+                break;
             case R.id.menu_scan:
 
                 /*switchPosition = !switchPosition;
@@ -734,16 +769,38 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 mConnected = false;
                 invalidateOptionsMenu();
                 break;
+            case R.id.menu_refreshcabin:
+                sdl.refreshCabin();
+                break;
             case R.id.menu_location:
                 String positionLook = item.getTitle().toString();
                 if(positionLook.equals("Global")) //global positioning
                 {
                     item.setTitle("Local");
+                    previousCir.clear();
+                    previousCir = (ArrayList<Circle>)currentCir.clone();
+                    currentCir.clear();
+                    pre = posLis.clone();
+                    removeListeners();
+                    global = false;
+                    removeListeners();
+                    addListeners();
 
+                    removePreviousCircles();
                 }
                 else
                 { //local positioning
                     item.setTitle("Global");
+                    previousCir.clear();
+                    previousCir = (ArrayList<Circle>)currentCir.clone();
+                    currentCir.clear();
+                    pre = posLis.clone();
+                    removeListeners();
+                    global = true;
+                    removeListeners();
+                    addListeners();
+                    removePreviousCircles();
+
 
                 }
                 break;
